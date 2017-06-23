@@ -66,7 +66,8 @@ impl<W: io::Write> Writer<W> {
         if value >= 0 {
             self.write_int_pos(value as u64)
         } else {
-            self.write_int_neg((-value) as u64)
+            // Do a dance to avoid negating i64::min_value()
+            self.write_int_neg(((-(value + 1)) as u64) + 1)
         }
     }
 
@@ -162,15 +163,21 @@ mod tests {
         let mut data = Vec::new();
         {
             let mut writer = Writer::new(&mut data);
+            writer.write_int(0).unwrap();
             writer.write_int(0x01020304).unwrap();
             writer.write_int(-1).unwrap();
             writer.write_int(-257).unwrap();
+            writer.write_int(i64::max_value()).unwrap();
+            writer.write_int(i64::min_value()).unwrap();
             writer.write_int_opt(None).unwrap();
         }
         assert_eq!(&data[..], &[
+            0x21, 0x00,
             0x24, 0x01, 0x02, 0x03, 0x04,
             0x31, 0x00,
             0x32, 0x01, 0x00,
+            0x28, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+            0x38, 0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
             0x20
         ]);
     }
